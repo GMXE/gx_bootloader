@@ -1,0 +1,10 @@
+build_gmxe/
+sdram_test/build_gmxe/
+__pycache__/
+*.pyc
+
+build_gmxe_extdfu/
+build_gmxe_intdfu/
+
+dist/
+.DS_Store
