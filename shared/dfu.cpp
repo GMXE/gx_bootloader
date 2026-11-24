@@ -306,15 +306,10 @@ DFUHandle::Result DFUHandle::Impl::MemoryStatus(uint32_t Add, uint8_t Cmd, uint8
     default:
     case DFU_MEDIA_ERASE:
         // Datasheet values:
-        // 64k erase (typ: 0.15s, max:1.0s)
-        // 4k erase (used in libDaisy) (typ: 0.07s, max: 0.3s)
-        // (0.3 * 16) = 4.8s, with some wiggle room for command latency, etc.
-        // we'll put this at 8s timeout with a plan to switch to 64kB erasures later
-        // to reduce the timeout..
-        // uint16_t timeout = 8000;
-        // uint16_t timeout = 1000;
-        // gxseed的Erase仍逐个擦除16个4KiB扇区；200ms不足以覆盖一次64KiB请求。
-        const uint16_t timeout = 8000;
+        // 64k erase (typ: 0.15s, max: 1.0s)
+        // gxseed现已改用64KB块擦除(BLOCK_ERASE_CMD 0xD8)，单块typ ~0.15s。
+        // 200ms与官方Daisy bootloader一致，取代原先16x4KiB所需的8000ms。
+        const uint16_t timeout = 200;
         buffer[0] = 0;   // bStatus (0 = OK) TODO -- make this actually check the status
         buffer[1] = (uint8_t)(timeout & 0x00ff);
         buffer[2] = (uint8_t)((timeout >> 8) & 0x00ff);

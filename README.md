@@ -126,3 +126,8 @@ loader不初始化FMC，复制QSPI应用到AXI SRAM并复位；复位后启动AB
 ## 2026-11-24 下载后应用交接修复
 
 DFU Leave 不再依赖 ST 默认立即系统复位；启用 vendor exit 回调，由 loader 主循环完成 SRAM 拷贝、boot_info JUMP、ABI token 和复位。USB 配置后最多等待一个2000ms窗口发起下载，若未下载仍自动启动有效应用；下载中保持PC7长亮，空闲时闪烁。v1.1 双变体已重新构建，leave/启动待实板复测。
+
+
+## 2026-11-24 QSPI 块擦除加速（v1.1）
+
+参照官方 DaisyBootloader（HEAD `8b279a8`）：`gxseed` 的 `QSPIHandle::Erase` 改为 **64KiB 块擦除**（`BLOCK_ERASE_CMD 0xD8`，不足/不对齐回退 4KiB），`shared/dfu.cpp` 的擦除 `bwPollTimeout` 由 **8000ms 降到 200ms**。单块擦除 typ ~0.15s；standard(2000ms) 与 yola_voice(100ms) 四份 loader 均已用此版本重建，文件名/产品串/超时不变。旧扇区擦除版二进制已归档于 `dist_archive/sectorerase_v1.1_20261124/`（本地、gitignore）。库改为共享影响，需实板验证下载擦写与跳转；实板通过前不宣称已验收。

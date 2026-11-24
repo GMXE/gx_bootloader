@@ -9,4 +9,5 @@ build_yola_voice_int/
 build_yola_voice_ex/
 
 dist/
+dist_archive/
 .DS_Store
