@@ -131,3 +131,14 @@ DFU Leave 不再依赖 ST 默认立即系统复位；启用 vendor exit 回调�
 ## 2026-11-24 QSPI 块擦除加速（v1.1）
 
 参照官方 DaisyBootloader（HEAD `8b279a8`）：`gxseed` 的 `QSPIHandle::Erase` 改为 **64KiB 块擦除**（`BLOCK_ERASE_CMD 0xD8`，不足/不对齐回退 4KiB），`shared/dfu.cpp` 的擦除 `bwPollTimeout` 由 **8000ms 降到 200ms**。单块擦除 typ ~0.15s；standard(2000ms) 与 yola_voice(100ms) 四份 loader 均已用此版本重建，文件名/产品串/超时不变。旧扇区擦除版二进制已归档于 `dist_archive/sectorerase_v1.1_20261124/`（本地、gitignore）。库改为共享影响，需实板验证下载擦写与跳转；实板通过前不宣称已验收。
+
+
+## 2026-11-24 启动卡死修复（启动决策对齐官方）
+
+现象：偶发上电后 PC7 长亮、无 DFU、不进入应用，重新上电恢复。修复：
+- **自动启动改固定超时语义**：`base` 只取启动/枚举时刻，不再被每次 `GETSTATUS` 的 `last_activity` 续命；仅当**真正开始下载**(`GetDfuInitiated`)或按住 BOOT 时抑制；另加 **10s 硬上限**，杜绝 USB 状态把启动无限推迟。
+- **PG3 改内部下拉**（`Pull::PULLDOWN`），避免浮空被误判为“按住 BOOT”而永不自动启动。
+- 跳转前熄灭 PC7；`qspi/dfu` 初始化失败改为**固定闪烁码**（3 次短闪+停顿），不再用难分辨的快速 toggle。
+- **编程轮询 20ms → 8ms**（向官方 3ms 对齐、留足 4 页写余量；擦除仍 200ms）。
+- 应用侧（`YOLA_VOICE_gx`）：SDRAM 未就绪由**静默 `__WFI()` 改为 LED 编码闪烁**（2 短闪+长灭），便于区分“应用已启动但 SDRAM 未就绪”与 loader 卡住；按 `SdramHandle` 设计仍只允许复位后重试，不做就地重试。
+待实板：反复冷上电（USB / 外接供电）确认不再卡死；可用 SWD 读 `SCB->VTOR`、`HasBootToken(kBootReady)`、`SdramHandle::IsReady()` 区分根因。四份 loader 已重建，脚本校验通过，实板通过前不宣称验收。

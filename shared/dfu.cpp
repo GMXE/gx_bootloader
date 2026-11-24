@@ -295,8 +295,8 @@ DFUHandle::Result DFUHandle::Impl::MemoryStatus(uint32_t Add, uint8_t Cmd, uint8
         // updated for "Max" time (0.8 page program * 16) = 12.8 with some wiggle room (20ms)
         // buffer[1] = 20; // bwPollTimeout 0
         // buffer[1] = 6; // bwPollTimeout 0
-        // 主循环异步写入，等待需覆盖最坏页编程时间，避免下一请求撞上busy。
-        buffer[1] = 20; // bwPollTimeout 0
+        // 主循环异步写入；1024B=4页，typ~2.8ms。取8ms覆盖典型+余量（官方3ms偏紧）。
+        buffer[1] = 8; // bwPollTimeout 0
         buffer[2] = 0; // bwPollTimeout 1
         buffer[3] = 0; // bwPollTimeout 2
         buffer[4] = 4; // bState (4 = dfuDNBUSY)
