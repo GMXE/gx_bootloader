@@ -5,6 +5,8 @@ __pycache__/
 
 build_gmxe_extdfu/
 build_gmxe_intdfu/
+build_yola_voice_int/
+build_yola_voice_ex/
 
 dist/
 .DS_Store

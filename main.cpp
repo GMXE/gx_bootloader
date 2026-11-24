@@ -8,7 +8,7 @@
 #include <cstring>
 using namespace daisy;
 static_assert(GXSEED_BOARD_ID == 1, "GMXE profile required");
-static_assert(DSY_BOOT_TIMEOUT_MS == 2000, "Release timeout must be 2000ms");
+static_assert(DSY_BOOT_TIMEOUT_MS == 2000 || DSY_BOOT_TIMEOUT_MS == 100, "Timeout must be 2000ms (standard) or 100ms (yola_voice)");
 constexpr uint32_t kImage = 0x90040000u;
 constexpr uint32_t kSram = 0x24000000u;
 constexpr uint32_t kCapacity = 480u * 1024u;

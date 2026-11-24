@@ -1,6 +1,8 @@
 > 当前发布入口（2026-11-23）：dist/gmxe_bootloader_v1-intdfu-2000ms.bin（PA11/PA12）及extdfu同名变体（PB14/PB15），两版2000ms。统一采用索引6和擦写等待修复，不再使用带fix后缀的调试镜像。用户确认intdfu应用擦除和下载完成；leave状态请求报错，应用启动/读回与extdfu实板测试待验收。历史记录中的“未下载”和“修复待复测”以此为准。
 >
 > 构建、烧录和优化指引：../libDaisy/docs/gmxe/BOOTLOADER.md。此前错误的官方派生源码和旧产物已移出使用路径，归档于工具目录DaisyBootloader/archive_gmxe_obsolete_20261123（禁止烧录）。
+>
+> 发布范围（2026-11-24）：`release.py` 只产出 bootloader（standard 2000ms + yola_voice 100ms）。产品、UI、自检及未来新产品固件由各自工程生成，不在本仓库 `dist/` 内。
 
 # GMXE Bootloader v1：W9825G6KH-6配套实验版
 
@@ -9,22 +11,23 @@
 
 ## 文件与地址
 
+本仓库 `release.py` 只产出 bootloader，`dist/` 仅含下表四份 loader。自检、YOLA 产品/UI 及未来新产品固件由各自工程构建，不随本仓库发布。
+
 | dist文件 | 用途 | 烧入地址 |
 |---|---|---|
-| gmxe_bootloader_v1-intdfu-2000ms.bin | 新loader，PA11 D− / PA12 D+，等待2秒 | 片内Flash 0x08000000 |
-| gmxe_bootloader_v1-extdfu-2000ms.bin | 新loader，PB14 D− / PB15 D+，等待2秒 | 片内Flash 0x08000000 |
-| GMXE_SdramTest_BOOT_SRAM.bin | 先验证真实loader链及32MiB全区内存 | QSPI 0x90040000 |
-| YOLA_VOICE_gxseed_EXPERIMENTAL.bin | 当前YOLA产品工程配套编译 | QSPI 0x90040000 |
-| YOLA_VOICE_gxseed_UI_EXPERIMENTAL.bin | OLED/UI调试入口 | QSPI 0x90040000 |
+| gmxe_bootloader_v1.1-intdfu-2000ms.bin | standard，PA11 D− / PA12 D+，等待2000ms | 片内Flash 0x08000000 |
+| gmxe_bootloader_v1.1-extdfu-2000ms.bin | standard，PB14 D− / PB15 D+，等待2000ms | 片内Flash 0x08000000 |
+| yola_voice_int.bin | YOLA专用，PA11/PA12，等待100ms，产品串 YOLA Voice int | 片内Flash 0x08000000 |
+| yola_voice_ex.bin | YOLA专用，PB14/PB15，等待100ms，产品串 YOLA Voice ex | 片内Flash 0x08000000 |
 
-三个应用只能选择一个写入同一槽位；都在0x24000000执行。配套elf/map供SWD调试，manifest.json及SHA256SUMS记录构建与校验值。
+四份只能选择一份写入 0x08000000。应用/自检（如 SdramTest、YOLA 产品/UI）由各自项目生成，烧到 QSPI 0x90040000、在 0x24000000 执行；配套 elf/map 供 SWD 调试，manifest.json 及 SHA256SUMS 记录构建与校验值。
 这不是整片合并image：先烧loader，再通过它烧应用；不能把应用bin烧到0x08000000。
 
 ## 烧录顺序
 
 1. 用SWD，或芯片ROM DFU，把新loader写到0x08000000。ROM DFU入口由BOOT0/RESET决定；可先尝试板载PA11/PA12接口。自定义loader的extdfu配置不决定芯片ROM支持哪个USB口。这里没有自动执行烧录。
-2. 恢复BOOT0正常启动，intdfu连接PA11/PA12常规USB；extdfu连接PB14/PB15外接USB。复位后有2000ms下载窗口；无有效应用时持续等待。loader不再使用PG3作保持键。PC7未配置USB时闪烁，USB配置后长亮；下载完成后leave复位状态仍待实板核对。
-3. 在现有GMXE Flasher选择“固件升级”，手动选择本包 `GMXE_SdramTest_BOOT_SRAM.bin`，确认目标为0x90040000。USB名称为“GMXE Bootloader v1 intdfu”或“GMXE Bootloader v1 extdfu”，VID:PID仍为0483:DF11。Flasher原来的“必须BOOT_QSPI”文案不适用于这份BOOT_SRAM固件，其内置旧v6.4选项也不是本包的新loader。
+2. 恢复BOOT0正常启动，intdfu连接PA11/PA12常规USB；extdfu连接PB14/PB15外接USB。standard版复位后有2000ms下载窗口（yola_voice版为100ms）；无有效应用时持续等待。v1.1 起复位后读取 PG3(BOOT)，按住可阻止自动跳转（详见 yola_voice 小节）。PC7未配置USB时闪烁，USB配置后长亮；下载完成后leave复位状态仍待实板核对。
+3. 在现有GMXE Flasher选择“固件升级”，手动选择自检工程产出的 `GMXE_SdramTest_BOOT_SRAM.bin`（本仓库不打包），确认目标为0x90040000。USB名称为“GMXE Bootloader v1 intdfu”或“GMXE Bootloader v1 extdfu”（yola_voice 为“YOLA Voice int/ex”），VID:PID仍为0483:DF11。Flasher原来的“必须BOOT_QSPI”文案不适用于这份BOOT_SRAM固件，其内置旧v6.4选项也不是本包的新loader。
 4. 使用SWD附加对应自检elf，观察 `gmxe_sdram_report`：magic=0x47585344、phase=100、passed=1才表示本轮32MiB读写/保持测试完成。失败保留status/clock_hz/refresh_count/address/expected/actual；此自检没有显示屏或串口结果输出，也不启动音频。
 5. 自检通过后，再复位进入下载窗口，把槽位替换为YOLA实验固件。产品/UI均构建通过，但TAC5242驱动和完整GMXE音频引脚映射尚未适配，不能据此承诺正常出声。下一步是音频BSP及实板整机回归。
 
@@ -52,23 +55,44 @@ DFU写入限定QSPI 0x90040000–0x907FFFFF，前256KiB保留；仅支持BOOT_SR
 
 | 同级目录 | 来源 | 构建loader所需 | 备注 |
 |---|---|---|---|
-| `../libDaisy` | `GMXE/gxseed`（私有，GMXE profile） | 是（`core/Makefile`、ST USB 源、`board/gmxe_boot.h`、`examples/GMXE_SdramTest`） | loader与`sdram_test`必需 |
-| `../DaisySP` | DaisySP 本地库 | 否 | 仅 `release.py` 打包应用时需要 |
-| `../gmxe project/YOLA_VOICE_gx` | `GMXE/YOLA_VOICE_gxseed`（私有） | 否 | 仅 `release.py` 打包应用时需要 |
+| `../libDaisy` | `GMXE/gxseed`（私有，GMXE profile） | 是（`core/Makefile`、ST USB 源、`board/gmxe_boot.h`） | loader 必需 |
+| `../DaisySP` | DaisySP 本地库 | 否 | 本仓库不构建；仅产品固件工程使用 |
+| `../gmxe project/YOLA_VOICE_gx` | `GMXE/YOLA_VOICE_gxseed`（私有） | 否 | 本仓库不构建；产品固件在其项目内生成 |
 
-仅编译loader：`make USB_MODE=extdfu`（或 `intdfu`），前提是 `../libDaisy` 已就位。完整打包 `release.py` 还需工具链 `arm-none-eabi-*` 及上述全部同级目录。
+仅编译loader：`make USB_MODE=extdfu`（或 `intdfu`）或 `make yola_voice_int` / `make yola_voice_ex`，前提是 `../libDaisy` 已就位。`release.py` 只需 `../libDaisy` 与 `arm-none-eabi-*` 工具链，不再需要 DaisySP 或产品工程。
 
 ## 构建及来源
 
-从本目录执行 `python3 release.py`，自动构建GMXE库、DaisySP、loader、SRAM自检及YOLA产品/UI，并打包到dist。需要arm-none-eabi工具链及工作区中的相对目录布局。默认YOLA Makefile保持产品入口。
+从本目录执行 `python3 release.py`，只构建 GMXE 库与四份 loader（standard ext/int 2000ms、yola_voice int/ex 100ms）并打包到 `dist/`；不构建 DaisySP、自检或产品/UI 固件。需要 arm-none-eabi 工具链及同级 `../libDaisy`。
 USB DFU实现源于本地DaisyBootloader `8b279a8` 的shared文件，保留原ST许可证头，使用工作区libDaisy的固定USB/HAL依赖；不修改原loader目录。
 修正原DFU的读回地址/返回指针、写缓冲长度检查、QSPI写入边界及错误状态；不包含旧loader的SD卡/USB存储自动升级功能。
-构建检查覆盖128KiB loader容量、应用480KiB容量与DTCM栈/Thumb向量、loader符号排除SDRAM/codec初始化；真实USB枚举、下载读回、断电复位、SDRAM波形/全区测试仍待实板执行。
+构建检查覆盖四份 loader 的 128KiB 容量、DTCM 栈/Thumb 向量、ext/int 对应 USB 选择、DFU 索引6回调，以及 loader 符号排除 SDRAM/codec 初始化；真实USB枚举、下载读回、断电复位仍待实板执行（SDRAM 全区测试在自检工程进行）。
 
-## 本地烧录目录分发（2026-11-15重新构建）
+## yola_voice 专用 100ms 配置
 
-分发目录：`/Users/wuenny/工具文件/Daisy-hardware/DaisyBootloader/dist/`。
-使用简短文件名 `gmxe_bootloader_v1-intdfu-2000ms.bin` 和 `gmxe_bootloader_v1-extdfu-2000ms.bin`。
+在原版 `standard`（2000ms，产品串 `GMXE Bootloader v1 ...`，保持不变的通用开发板 loader）之外，新增 YOLA Voice 产品专用 loader：下载窗口缩短为 100ms 以加快开机。原版镜像、文件名与产品串均保留。
+
+| 产物 | USB | 产品串 | 烧入地址 |
+|---|---|---|---|
+| dist/yola_voice_int.bin | 内部 PA11/PA12（intdfu） | YOLA Voice int | 片内Flash 0x08000000 |
+| dist/yola_voice_ex.bin | 外部 PB14/PB15（extdfu） | YOLA Voice ex | 片内Flash 0x08000000 |
+
+构建（需 `../libDaisy` 就位）：
+
+```sh
+make PROFILE=yola_voice USB_MODE=intdfu   # 产物 build_yola_voice_int/yola_voice_int.bin
+make PROFILE=yola_voice USB_MODE=extdfu   # 产物 build_yola_voice_ex/yola_voice_ex.bin
+# 等价便利目标：
+make yola_voice_int
+make yola_voice_ex
+```
+
+行为：100ms 内无 USB 枚举/活动且存在有效应用时即自动跳转，加快开机；进入 DFU 需复位时按住 BOOT(PG3)（`boot_button_pressed` 阻止自动跳转）或应用下发 `INF_TIMEOUT`。`SKIP_TIMEOUT` 分支仍固定 100ms，与 yola_voice 默认超时相同。`release.py` 只构建这四份 loader（含 yola_voice 两份），并按 ext/int 校验各自的 `USBInit_HS/FS` 选择；产品固件不在此仓库生成。
+注：早期 v1 文档称「PG3 不作保持键」；当前 v1.1 代码在复位后读取 PG3(BOOT)，按住会阻止自动跳转，以本节为准。
+
+## 本地烧录目录分发（历史，2026-11-15）
+
+当前 `release.py` 只产出 bootloader 到本仓库 `dist/`；下方旧分发目录仅存档。历史目录：`/Users/wuenny/工具文件/Daisy-hardware/DaisyBootloader/dist/`，文件名 `gmxe_bootloader_v1-intdfu-2000ms.bin` / `gmxe_bootloader_v1-extdfu-2000ms.bin`。
 两份只能选择一份写到0x08000000。两版使用相同SDRAM交接及相同应用bin。
 LED源码位于 `../gmxe project/GMXE_BoardSmokeTest`；不调用DaisySeed::Init，不初始化SDRAM/codec。
 
